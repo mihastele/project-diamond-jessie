@@ -18,20 +18,11 @@ pub enum HttpError {
     ConnectionError(String),
 }
 
-pub struct HttpClient {
-    client: Client,
-}
+pub struct HttpClient;
 
 impl HttpClient {
     pub fn new() -> Self {
-        let client = Client::builder()
-            .timeout(Duration::from_secs(30))
-            .redirect(Policy::limited(10))
-            .danger_accept_invalid_certs(false)
-            .build()
-            .expect("Failed to create HTTP client");
-
-        Self { client }
+        Self
     }
 
     pub async fn send(&self, payload: HttpRequestPayload) -> Result<HttpResponsePayload, HttpError> {
@@ -60,8 +51,9 @@ impl HttpClient {
             .danger_accept_invalid_certs(!validate_ssl)
             .build()
             .map_err(|e| HttpError::RequestFailed(e.to_string()))?;
-
-        let mut request = client.request(method, &payload.url);
+        let url = reqwest::Url::parse(&payload.url)
+            .map_err(|e| HttpError::InvalidUrl(e.to_string()))?;
+        let mut request = client.request(method, url);
 
         for (key, value) in &payload.headers {
             request = request.header(key, value);

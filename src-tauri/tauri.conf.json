@@ -50,9 +50,7 @@
     }
   },
   "plugins": {
-    "fs": {
-      "scope": ["$APP/*", "$DOCUMENT/*", "$HOME/*"]
-    },
+    "fs": {},
     "shell": {
       "open": true
     }
