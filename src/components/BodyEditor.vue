@@ -25,6 +25,16 @@ const bodyTypes: { value: BodyType; label: string }[] = [
 
 const localRaw = ref(props.body.raw || '')
 const jsonError = ref<string | null>(null)
+const placeholderText = computed(() => {
+  switch (props.body.type) {
+    case 'json':
+      return '{\n  "key": "value"\n}'
+    case 'xml':
+      return '<?xml version="1.0"?>\n<root></root>'
+    default:
+      return 'Enter text...'
+  }
+})
 
 watch(() => props.body.raw, (newVal) => {
   if (newVal !== localRaw.value) {
@@ -107,7 +117,7 @@ function updateUrlEncoded(items: KeyValue[]) {
       <textarea
         :value="localRaw"
         @input="updateRaw(($event.target as HTMLTextAreaElement).value)"
-        :placeholder="body.type === 'json' ? '{\n  \"key\": \"value\"\n}' : body.type === 'xml' ? '<?xml version=\"1.0\"?>\n<root></root>' : 'Enter text...'"
+        :placeholder="placeholderText"
         class="input font-mono text-sm min-h-[200px] resize-y"
         :class="{ 'border-red-500 focus:ring-red-500': jsonError }"
         spellcheck="false"
