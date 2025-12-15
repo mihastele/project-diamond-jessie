@@ -171,6 +171,131 @@ export const useWorkspaceStore = defineStore('workspace', () => {
     return null
   }
 
+  function findItemByPath(items: CollectionItem[], path: string[]): CollectionItem | null {
+    if (path.length === 0) return null
+    let current: CollectionItem | null = null
+    let currentItems = items
+    
+    for (const id of path) {
+      current = currentItems.find(item => item.id === id) ?? null
+      if (!current) return null
+      currentItems = current.children ?? []
+    }
+    return current
+  }
+
+  function findParentItems(collection: Collection, path: string[]): CollectionItem[] {
+    if (path.length === 0) return collection.items
+    const parent = findItemByPath(collection.items, path)
+    return parent?.children ?? collection.items
+  }
+
+  function addRequestToFolder(collectionId: string, folderId: string, parentPath: string[], request: HttpRequest) {
+    if (!activeWorkspace.value) return
+    
+    const collection = activeWorkspace.value.collections.find(c => c.id === collectionId)
+    if (!collection) return
+
+    const item: CollectionItem = {
+      id: uuidv4(),
+      type: 'request',
+      name: request.name,
+      request: { ...request, id: uuidv4() }
+    }
+
+    const fullPath = [...parentPath, folderId]
+    const folder = findItemByPath(collection.items, fullPath)
+    if (folder && folder.type === 'folder') {
+      folder.children = folder.children || []
+      folder.children.push(item)
+    }
+    
+    collection.updatedAt = Date.now()
+    activeWorkspace.value.updatedAt = Date.now()
+  }
+
+  function createSubFolder(collectionId: string, parentFolderId: string, parentPath: string[], name: string) {
+    if (!activeWorkspace.value) return
+    
+    const collection = activeWorkspace.value.collections.find(c => c.id === collectionId)
+    if (!collection) return
+
+    const folder: CollectionItem = {
+      id: uuidv4(),
+      type: 'folder',
+      name,
+      children: []
+    }
+
+    const fullPath = [...parentPath, parentFolderId]
+    const parent = findItemByPath(collection.items, fullPath)
+    if (parent && parent.type === 'folder') {
+      parent.children = parent.children || []
+      parent.children.push(folder)
+    }
+    
+    collection.updatedAt = Date.now()
+    activeWorkspace.value.updatedAt = Date.now()
+  }
+
+  function duplicateItem(collectionId: string, itemId: string, parentPath: string[]) {
+    if (!activeWorkspace.value) return
+    
+    const collection = activeWorkspace.value.collections.find(c => c.id === collectionId)
+    if (!collection) return
+
+    const parentItems = findParentItems(collection, parentPath)
+    const itemIndex = parentItems.findIndex(i => i.id === itemId)
+    if (itemIndex === -1) return
+
+    const original = parentItems[itemIndex]
+    const duplicate = JSON.parse(JSON.stringify(original)) as CollectionItem
+    
+    function regenerateIds(item: CollectionItem) {
+      item.id = uuidv4()
+      if (item.request) item.request.id = uuidv4()
+      item.children?.forEach(regenerateIds)
+    }
+    
+    regenerateIds(duplicate)
+    duplicate.name = `${original.name} (copy)`
+    parentItems.splice(itemIndex + 1, 0, duplicate)
+    
+    collection.updatedAt = Date.now()
+    activeWorkspace.value.updatedAt = Date.now()
+  }
+
+  function renameItem(collectionId: string, itemId: string, parentPath: string[], newName: string) {
+    if (!activeWorkspace.value) return
+    
+    const collection = activeWorkspace.value.collections.find(c => c.id === collectionId)
+    if (!collection) return
+
+    const parentItems = findParentItems(collection, parentPath)
+    const item = parentItems.find(i => i.id === itemId)
+    if (item) {
+      item.name = newName
+      if (item.request) item.request.name = newName
+      collection.updatedAt = Date.now()
+      activeWorkspace.value.updatedAt = Date.now()
+    }
+  }
+
+  function deleteItem(collectionId: string, itemId: string, parentPath: string[]) {
+    if (!activeWorkspace.value) return
+    
+    const collection = activeWorkspace.value.collections.find(c => c.id === collectionId)
+    if (!collection) return
+
+    const parentItems = findParentItems(collection, parentPath)
+    const index = parentItems.findIndex(i => i.id === itemId)
+    if (index !== -1) {
+      parentItems.splice(index, 1)
+      collection.updatedAt = Date.now()
+      activeWorkspace.value.updatedAt = Date.now()
+    }
+  }
+
   function createEnvironment(name: string): Environment | null {
     if (!activeWorkspace.value) return null
     
@@ -277,6 +402,11 @@ export const useWorkspaceStore = defineStore('workspace', () => {
     addRequestToCollection,
     createFolder,
     findItemById,
+    addRequestToFolder,
+    createSubFolder,
+    duplicateItem,
+    renameItem,
+    deleteItem,
     createEnvironment,
     setActiveEnvironment,
     updateEnvironment,
