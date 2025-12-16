@@ -2,10 +2,11 @@
 import { ref, computed } from 'vue'
 import { useWorkspaceStore } from '@/stores/workspace'
 import { useTabsStore } from '@/stores/tabs'
-import type { Collection, CollectionItem, HistoryEntry, RequestChain } from '@/types'
+import type { HistoryEntry, RequestChain, Collection } from '@/types'
 import CollectionTree from './CollectionTree.vue'
 import EnvironmentSelector from './EnvironmentSelector.vue'
 import RequestChainEditor from './RequestChainEditor.vue'
+import { importPostmanCollection, exportToPostman } from '@/utils/postman'
 
 defineProps<{
   collapsed: boolean
@@ -85,6 +86,54 @@ function saveChain(chain: RequestChain) {
 function deleteChain(chainId: string) {
   savedChains.value = savedChains.value.filter(c => c.id !== chainId)
 }
+
+// Postman Import/Export
+const showImportModal = ref(false)
+const importError = ref('')
+const fileInput = ref<HTMLInputElement | null>(null)
+
+function triggerImport() {
+  fileInput.value?.click()
+}
+
+async function handleFileImport(event: Event) {
+  const target = event.target as HTMLInputElement
+  const file = target.files?.[0]
+  if (!file) return
+  
+  try {
+    const text = await file.text()
+    const collection = importPostmanCollection(text)
+    
+    // Add to workspace
+    if (workspaceStore.activeWorkspace) {
+      workspaceStore.activeWorkspace.collections.push(collection)
+      workspaceStore.activeWorkspace.updatedAt = Date.now()
+    }
+    
+    importError.value = ''
+    showImportModal.value = false
+  } catch (e) {
+    importError.value = e instanceof Error ? e.message : 'Failed to import collection'
+  }
+  
+  // Reset file input
+  target.value = ''
+}
+
+function exportCollection(collection: Collection) {
+  const json = exportToPostman(collection)
+  const blob = new Blob([json], { type: 'application/json' })
+  const url = URL.createObjectURL(blob)
+  
+  const a = document.createElement('a')
+  a.href = url
+  a.download = `${collection.name}.postman_collection.json`
+  document.body.appendChild(a)
+  a.click()
+  document.body.removeChild(a)
+  URL.revokeObjectURL(url)
+}
 </script>
 
 <template>
@@ -122,16 +171,36 @@ function deleteChain(chainId: string) {
       <div v-if="activeSection === 'collections'" class="p-2">
         <div class="flex items-center justify-between mb-2">
           <span class="text-xs font-medium text-surface-500 uppercase tracking-wider">Collections</span>
-          <button
-            @click="showNewCollectionModal = true"
-            class="p-1 rounded hover:bg-surface-200 dark:hover:bg-surface-800 text-surface-500 hover:text-surface-700 dark:hover:text-surface-300"
-            title="New Collection"
-          >
-            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
-            </svg>
-          </button>
+          <div class="flex items-center gap-1">
+            <button
+              @click="triggerImport"
+              class="p-1 rounded hover:bg-surface-200 dark:hover:bg-surface-800 text-surface-500 hover:text-surface-700 dark:hover:text-surface-300"
+              title="Import Postman Collection"
+            >
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
+              </svg>
+            </button>
+            <button
+              @click="showNewCollectionModal = true"
+              class="p-1 rounded hover:bg-surface-200 dark:hover:bg-surface-800 text-surface-500 hover:text-surface-700 dark:hover:text-surface-300"
+              title="New Collection"
+            >
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
+              </svg>
+            </button>
+          </div>
         </div>
+        
+        <!-- Hidden file input for import -->
+        <input
+          ref="fileInput"
+          type="file"
+          accept=".json"
+          class="hidden"
+          @change="handleFileImport"
+        />
         
         <div v-if="collections.length === 0" class="text-center py-8 text-surface-400 text-sm">
           <p>No collections yet</p>
@@ -141,13 +210,29 @@ function deleteChain(chainId: string) {
           >
             Create your first collection
           </button>
+          <p class="text-xs mt-2 text-surface-400">or</p>
+          <button
+            @click="triggerImport"
+            class="mt-1 text-diamond-600 dark:text-diamond-400 hover:underline"
+          >
+            Import from Postman
+          </button>
         </div>
         
-        <CollectionTree
-          v-for="collection in collections"
-          :key="collection.id"
-          :collection="collection"
-        />
+        <div v-for="collection in collections" :key="collection.id" class="group">
+          <div class="flex items-center justify-between">
+            <CollectionTree :collection="collection" class="flex-1" />
+            <button
+              @click="exportCollection(collection)"
+              class="p-1 rounded opacity-0 group-hover:opacity-100 hover:bg-surface-200 dark:hover:bg-surface-700 text-surface-400 hover:text-surface-600"
+              title="Export as Postman Collection"
+            >
+              <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+              </svg>
+            </button>
+          </div>
+        </div>
       </div>
       
       <div v-else-if="activeSection === 'history'" class="p-2">

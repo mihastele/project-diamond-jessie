@@ -148,6 +148,35 @@ export const useWorkspaceStore = defineStore('workspace', () => {
     
     collection.updatedAt = Date.now()
     activeWorkspace.value.updatedAt = Date.now()
+    
+    return item.id // Return the created item ID
+  }
+
+  function updateCollectionItem(
+    collectionId: string,
+    itemId: string,
+    request: HttpRequest,
+    metadata?: RequestMetadata
+  ): boolean {
+    if (!activeWorkspace.value) return false
+    
+    const collection = activeWorkspace.value.collections.find(c => c.id === collectionId)
+    if (!collection) return false
+    
+    const item = findItemById(collection.items, itemId)
+    if (!item || item.type !== 'request') return false
+    
+    // Update the item
+    item.name = request.name
+    item.request = { ...request }
+    item.requestType = metadata?.requestType || 'http'
+    item.graphqlRequest = metadata?.graphqlRequest
+    item.websocketRequest = metadata?.websocketRequest
+    
+    collection.updatedAt = Date.now()
+    activeWorkspace.value.updatedAt = Date.now()
+    
+    return true
   }
 
   function createFolder(collectionId: string, name: string, parentId?: string) {
@@ -417,6 +446,7 @@ export const useWorkspaceStore = defineStore('workspace', () => {
     updateCollection,
     deleteCollection,
     addRequestToCollection,
+    updateCollectionItem,
     createFolder,
     findItemById,
     addRequestToFolder,

@@ -20,6 +20,20 @@ const showNewCollection = ref(false)
 const newCollectionName = ref('')
 const selectedCollectionId = ref<string | null>(null)
 const searchQuery = ref('')
+const saveMode = ref<'new' | 'update'>('new')
+
+// Check if request is already saved
+const hasSavedRef = computed(() => !!activeTab.value?.savedRef)
+const savedCollection = computed(() => {
+  if (!activeTab.value?.savedRef) return null
+  return collections.value.find(c => c.id === activeTab.value?.savedRef?.collectionId)
+})
+
+// Initialize selection based on saved ref
+if (activeTab.value?.savedRef) {
+  selectedCollectionId.value = activeTab.value.savedRef.collectionId
+  saveMode.value = 'update'
+}
 
 const filteredCollections = computed(() => {
   if (!searchQuery.value) return collections.value
@@ -70,17 +84,12 @@ function createNewCollection() {
   showNewCollection.value = false
 }
 
-function saveToCollection() {
-  if (!selectedCollectionId.value || !currentRequest.value || !activeTab.value) return
+function buildHttpWrapper(req: typeof currentRequest.value): HttpRequest {
+  if (!req) throw new Error('No request')
   
-  const req = currentRequest.value
-  const tab = activeTab.value
-  
-  // Create a proper request object based on type
   if (req.type === 'graphql') {
-    // Save GraphQL request
     const gqlRequest = req.data as GraphQLRequest
-    const httpWrapper: HttpRequest = {
+    return {
       id: uuidv4(),
       name: req.name,
       method: 'POST',
@@ -99,16 +108,9 @@ function saveToCollection() {
       preRequestScript: '',
       testScript: ''
     }
-    
-    // Store with GraphQL metadata (folderId = undefined, metadata = 4th param)
-    workspaceStore.addRequestToCollection(selectedCollectionId.value, httpWrapper, undefined, {
-      requestType: 'graphql',
-      graphqlRequest: gqlRequest
-    })
   } else if (req.type === 'websocket') {
-    // Save WebSocket request
     const wsRequest = req.data as WebSocketRequest
-    const httpWrapper: HttpRequest = {
+    return {
       id: uuidv4(),
       name: req.name,
       method: 'GET',
@@ -121,16 +123,64 @@ function saveToCollection() {
       preRequestScript: '',
       testScript: ''
     }
-    
-    workspaceStore.addRequestToCollection(selectedCollectionId.value, httpWrapper, undefined, {
-      requestType: 'websocket',
-      websocketRequest: wsRequest
-    })
   } else {
-    // Save HTTP request
-    const httpRequest = { ...req.data as HttpRequest, name: req.name }
-    workspaceStore.addRequestToCollection(selectedCollectionId.value, httpRequest, undefined, {
-      requestType: 'http'
+    return { ...req.data as HttpRequest, name: req.name }
+  }
+}
+
+function getMetadata(req: typeof currentRequest.value) {
+  if (!req) return { requestType: 'http' as const }
+  
+  if (req.type === 'graphql') {
+    return {
+      requestType: 'graphql' as const,
+      graphqlRequest: req.data as GraphQLRequest
+    }
+  } else if (req.type === 'websocket') {
+    return {
+      requestType: 'websocket' as const,
+      websocketRequest: req.data as WebSocketRequest
+    }
+  }
+  return { requestType: 'http' as const }
+}
+
+function updateExisting() {
+  if (!activeTab.value?.savedRef || !currentRequest.value) return
+  
+  const { collectionId, itemId } = activeTab.value.savedRef
+  const httpWrapper = buildHttpWrapper(currentRequest.value)
+  const metadata = getMetadata(currentRequest.value)
+  
+  workspaceStore.updateCollectionItem(collectionId, itemId, httpWrapper, metadata)
+  tabsStore.markSaved(activeTab.value.id)
+  
+  emit('saved', collectionId)
+  emit('close')
+}
+
+function saveToCollection() {
+  if (!selectedCollectionId.value || !currentRequest.value || !activeTab.value) return
+  
+  const req = currentRequest.value
+  const tab = activeTab.value
+  
+  const httpWrapper = buildHttpWrapper(req)
+  const metadata = getMetadata(req)
+  
+  // Add to collection and get the item ID
+  const itemId = workspaceStore.addRequestToCollection(
+    selectedCollectionId.value, 
+    httpWrapper, 
+    undefined, 
+    metadata
+  )
+  
+  // Set the saved reference on the tab
+  if (itemId) {
+    tabsStore.setSavedRef(tab.id, {
+      collectionId: selectedCollectionId.value,
+      itemId
     })
   }
   
@@ -185,6 +235,23 @@ function getRequestTypeColor(): string {
         
         <!-- Content -->
         <div class="p-4">
+          <!-- Update Existing Option -->
+          <div v-if="hasSavedRef && savedCollection" class="mb-4 p-3 bg-emerald-50 dark:bg-emerald-900/20 border border-emerald-200 dark:border-emerald-800 rounded-lg">
+            <p class="text-sm font-medium text-emerald-700 dark:text-emerald-300 mb-2">
+              This request is already saved
+            </p>
+            <p class="text-xs text-emerald-600 dark:text-emerald-400 mb-3">
+              In collection: <span class="font-medium">{{ savedCollection.name }}</span>
+            </p>
+            <button
+              @click="updateExisting"
+              class="w-full btn bg-emerald-600 hover:bg-emerald-700 text-white"
+            >
+              Update Existing Request
+            </button>
+            <p class="text-xs text-center text-surface-400 mt-2">Or save as new below</p>
+          </div>
+          
           <!-- Search -->
           <div class="relative mb-3">
             <svg class="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-surface-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">

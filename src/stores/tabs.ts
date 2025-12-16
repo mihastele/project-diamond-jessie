@@ -197,6 +197,13 @@ export const useTabsStore = defineStore('tabs', () => {
     tabs.value.splice(toIndex, 0, tab)
   }
 
+  function setSavedRef(tabId: string, ref: { collectionId: string; itemId: string }) {
+    const tab = tabs.value.find(t => t.id === tabId)
+    if (tab) {
+      tab.savedRef = ref
+    }
+  }
+
   return {
     tabs,
     activeTabId,
@@ -218,6 +225,7 @@ export const useTabsStore = defineStore('tabs', () => {
     clearResponse,
     markSaved,
     duplicateTab,
-    reorderTabs
+    reorderTabs,
+    setSavedRef
   }
 })

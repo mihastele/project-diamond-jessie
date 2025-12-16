@@ -93,6 +93,11 @@ export interface RequestTab {
   graphqlResponse?: GraphQLResponse
   isLoading: boolean
   isDirty: boolean
+  // Reference to saved collection item (for updates instead of duplicates)
+  savedRef?: {
+    collectionId: string
+    itemId: string
+  }
 }
 
 export interface Collection {
