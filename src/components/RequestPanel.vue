@@ -4,6 +4,7 @@ import { useTabsStore } from '@/stores/tabs'
 import { useWorkspaceStore } from '@/stores/workspace'
 import type { HttpMethod, KeyValue, RequestType } from '@/types'
 import { v4 as uuidv4 } from 'uuid'
+import { sendHttpRequest } from '@/utils/http'
 import BodyEditor from './BodyEditor.vue'
 import AuthEditor from './AuthEditor.vue'
 import KeyValueEditor from './KeyValueEditor.vue'
@@ -145,39 +146,16 @@ async function sendRequest() {
       resolvedHeaders['Content-Type'] = 'application/x-www-form-urlencoded'
     }
     
-    const startTime = performance.now()
-    
-    const response = await fetch(resolvedUrl, {
+    const httpResponse = await sendHttpRequest({
       method: request.value.method,
+      url: resolvedUrl,
       headers: resolvedHeaders,
-      body: ['GET', 'HEAD', 'OPTIONS'].includes(request.value.method) ? undefined : body
+      body: ['GET', 'HEAD', 'OPTIONS'].includes(request.value.method) ? undefined : (body as string | undefined),
+      bodyType: request.value.body.type,
+      timeoutMs: 30000,
+      followRedirects: true,
+      validateSsl: true
     })
-    
-    const endTime = performance.now()
-    const responseBody = await response.text()
-    
-    const responseHeaders: Record<string, string> = {}
-    response.headers.forEach((value, key) => {
-      responseHeaders[key] = value
-    })
-    
-    const httpResponse = {
-      status: response.status,
-      statusText: response.statusText,
-      headers: responseHeaders,
-      body: responseBody,
-      bodySize: new Blob([responseBody]).size,
-      timing: {
-        dns: 0,
-        connect: 0,
-        tls: 0,
-        send: 0,
-        wait: endTime - startTime,
-        receive: 0,
-        total: endTime - startTime
-      },
-      timestamp: Date.now()
-    }
     
     tabsStore.setResponse(activeTab.value.id, httpResponse)
     

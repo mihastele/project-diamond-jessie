@@ -3,6 +3,7 @@ import { onMounted, ref } from 'vue'
 import { useSettingsStore } from '@/stores/settings'
 import { useWorkspaceStore } from '@/stores/workspace'
 import { useTabsStore } from '@/stores/tabs'
+import { sendHttpRequest } from '@/utils/http'
 import Sidebar from '@/components/Sidebar.vue'
 import TabBar from '@/components/TabBar.vue'
 import RequestPanel from '@/components/RequestPanel.vue'
@@ -128,29 +129,24 @@ async function sendGraphQLRequest() {
       headers[h.key] = h.value
     })
     
-    const response = await fetch(gqlReq.url, {
+    const body = JSON.stringify({
+      query: gqlReq.query,
+      variables: gqlReq.variables ? JSON.parse(gqlReq.variables) : undefined,
+      operationName: gqlReq.operationName || undefined
+    })
+    
+    const response = await sendHttpRequest({
       method: 'POST',
+      url: gqlReq.url,
       headers,
-      body: JSON.stringify({
-        query: gqlReq.query,
-        variables: gqlReq.variables ? JSON.parse(gqlReq.variables) : undefined,
-        operationName: gqlReq.operationName || undefined
-      })
+      body,
+      bodyType: 'json',
+      timeoutMs: 30000,
+      followRedirects: true,
+      validateSsl: true
     })
     
-    const data = await response.json()
-    const responseHeaders: Record<string, string> = {}
-    response.headers.forEach((v, k) => responseHeaders[k] = v)
-    
-    tabsStore.setResponse(tabsStore.activeTab.id, {
-      status: response.status,
-      statusText: response.statusText,
-      headers: responseHeaders,
-      body: JSON.stringify(data, null, 2),
-      bodySize: JSON.stringify(data).length,
-      timing: { dns: 0, connect: 0, tls: 0, send: 0, wait: 0, receive: 0, total: 0 },
-      timestamp: Date.now()
-    })
+    tabsStore.setResponse(tabsStore.activeTab.id, response)
   } catch (error) {
     tabsStore.setResponse(tabsStore.activeTab.id, {
       status: 0,

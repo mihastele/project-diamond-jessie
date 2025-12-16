@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { ref, computed } from 'vue'
 import { useWorkspaceStore } from '@/stores/workspace'
+import { sendHttpRequest } from '@/utils/http'
 import type { Collection, CollectionRunResult, HttpRequest, HttpResponse, TestResult} from '@/types'
 
 const props = defineProps<{
@@ -101,36 +102,16 @@ async function runCollection() {
         body = workspaceStore.resolveVariables(item.request.body.raw)
       }
       
-      const requestStart = Date.now()
-      
-      // Make the request (simplified - in production this would go through Tauri)
-      const response = await fetch(resolvedUrl, {
+      // Make the request using Tauri backend (no CORS restrictions)
+      const httpResponse = await sendHttpRequest({
         method: item.request.method,
+        url: resolvedUrl,
         headers,
         body,
-        signal: abortController.value?.signal
+        timeoutMs: 30000,
+        followRedirects: true,
+        validateSsl: true
       })
-      
-      const responseBody = await response.text()
-      const requestEnd = Date.now()
-      
-      const httpResponse: HttpResponse = {
-        status: response.status,
-        statusText: response.statusText,
-        headers: Object.fromEntries(response.headers.entries()),
-        body: responseBody,
-        bodySize: responseBody.length,
-        timing: {
-          dns: 0,
-          connect: 0,
-          tls: 0,
-          send: 0,
-          wait: requestEnd - requestStart,
-          receive: 0,
-          total: requestEnd - requestStart
-        },
-        timestamp: requestEnd
-      }
       
       requestResult.response = httpResponse
       
