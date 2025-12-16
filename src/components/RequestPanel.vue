@@ -231,7 +231,7 @@ function getMethodClass(method: string): string {
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
           </svg>
         </button>
-        <div class="absolute left-0 top-full mt-1 bg-white dark:bg-surface-800 rounded-lg shadow-lg border dark:border-surface-700 py-1 min-w-32 z-10 hidden group-hover:block">
+        <div class="absolute left-0 top-full bg-white dark:bg-surface-800 rounded-lg shadow-lg border dark:border-surface-700 py-1 min-w-32 z-10 hidden group-hover:block">
           <button
             v-for="type in requestTypes"
             :key="type.value"
