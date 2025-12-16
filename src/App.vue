@@ -7,6 +7,8 @@ import Sidebar from '@/components/Sidebar.vue'
 import TabBar from '@/components/TabBar.vue'
 import RequestPanel from '@/components/RequestPanel.vue'
 import ResponsePanel from '@/components/ResponsePanel.vue'
+import GraphQLPanel from '@/components/GraphQLPanel.vue'
+import WebSocketPanel from '@/components/WebSocketPanel.vue'
 import CommandPalette from '@/components/CommandPalette.vue'
 import WelcomeScreen from '@/components/WelcomeScreen.vue'
 
@@ -69,6 +71,86 @@ function handleSplitDrag(e: MouseEvent) {
   const position = ((e.clientY - rect.top) / rect.height) * 100
   splitPosition.value = Math.max(20, Math.min(80, position))
 }
+
+function startSplitDrag() {
+  const onMove = (ev: MouseEvent) => handleSplitDrag(ev)
+  const onUp = () => {
+    window.removeEventListener('mousemove', onMove)
+    window.removeEventListener('mouseup', onUp)
+  }
+  window.addEventListener('mousemove', onMove)
+  window.addEventListener('mouseup', onUp)
+}
+
+function updateGraphQLRequest(req: any) {
+  if (tabsStore.activeTab) {
+    const tab = tabsStore.tabs.find(t => t.id === tabsStore.activeTabId)
+    if (tab) {
+      tab.graphqlRequest = req
+      tab.isDirty = true
+    }
+  }
+}
+
+async function sendGraphQLRequest() {
+  if (!tabsStore.activeTab?.graphqlRequest) return
+  
+  const gqlReq = tabsStore.activeTab.graphqlRequest
+  tabsStore.setLoading(tabsStore.activeTab.id, true)
+  
+  try {
+    const headers: Record<string, string> = {
+      'Content-Type': 'application/json'
+    }
+    gqlReq.headers.filter(h => h.enabled).forEach(h => {
+      headers[h.key] = h.value
+    })
+    
+    const response = await fetch(gqlReq.url, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({
+        query: gqlReq.query,
+        variables: gqlReq.variables ? JSON.parse(gqlReq.variables) : undefined,
+        operationName: gqlReq.operationName || undefined
+      })
+    })
+    
+    const data = await response.json()
+    const responseHeaders: Record<string, string> = {}
+    response.headers.forEach((v, k) => responseHeaders[k] = v)
+    
+    tabsStore.setResponse(tabsStore.activeTab.id, {
+      status: response.status,
+      statusText: response.statusText,
+      headers: responseHeaders,
+      body: JSON.stringify(data, null, 2),
+      bodySize: JSON.stringify(data).length,
+      timing: { dns: 0, connect: 0, tls: 0, send: 0, wait: 0, receive: 0, total: 0 },
+      timestamp: Date.now()
+    })
+  } catch (error) {
+    tabsStore.setResponse(tabsStore.activeTab.id, {
+      status: 0,
+      statusText: error instanceof Error ? error.message : 'Request failed',
+      headers: {},
+      body: error instanceof Error ? error.stack || error.message : 'Unknown error',
+      bodySize: 0,
+      timing: { dns: 0, connect: 0, tls: 0, send: 0, wait: 0, receive: 0, total: 0 },
+      timestamp: Date.now()
+    })
+  }
+}
+
+function updateWebSocketRequest(req: any) {
+  if (tabsStore.activeTab) {
+    const tab = tabsStore.tabs.find(t => t.id === tabsStore.activeTabId)
+    if (tab) {
+      tab.websocketRequest = req
+      tab.isDirty = true
+    }
+  }
+}
 </script>
 
 <template>
@@ -104,32 +186,63 @@ function handleSplitDrag(e: MouseEvent) {
         <TabBar />
         
         <div v-if="tabsStore.activeTab" id="main-panels" class="flex-1 flex flex-col overflow-hidden">
-          <div 
-            class="overflow-auto border-b"
-            :style="{ height: `${splitPosition}%` }"
-          >
-            <RequestPanel />
-          </div>
+          <!-- HTTP Request Panel -->
+          <template v-if="tabsStore.activeTab.requestType === 'http' || !tabsStore.activeTab.requestType">
+            <div 
+              class="overflow-auto border-b"
+              :style="{ height: `${splitPosition}%` }"
+            >
+              <RequestPanel />
+            </div>
+            
+            <div 
+              class="h-1 bg-surface-200 dark:bg-surface-700 cursor-row-resize hover:bg-diamond-500 transition-colors flex-shrink-0"
+              @mousedown="startSplitDrag"
+            />
+            
+            <div 
+              class="overflow-auto"
+              :style="{ height: `${100 - splitPosition}%` }"
+            >
+              <ResponsePanel />
+            </div>
+          </template>
           
-          <div 
-            class="h-1 bg-surface-200 dark:bg-surface-700 cursor-row-resize hover:bg-diamond-500 transition-colors flex-shrink-0"
-            @mousedown="(e) => {
-              const onMove = (ev: MouseEvent) => handleSplitDrag(ev)
-              const onUp = () => {
-                window.removeEventListener('mousemove', onMove)
-                window.removeEventListener('mouseup', onUp)
-              }
-              window.addEventListener('mousemove', onMove)
-              window.addEventListener('mouseup', onUp)
-            }"
-          />
+          <!-- GraphQL Panel -->
+          <template v-else-if="tabsStore.activeTab.requestType === 'graphql'">
+            <div 
+              class="overflow-auto border-b"
+              :style="{ height: `${splitPosition}%` }"
+            >
+              <GraphQLPanel 
+                v-if="tabsStore.activeTab.graphqlRequest"
+                :request="tabsStore.activeTab.graphqlRequest"
+                @update="(req) => updateGraphQLRequest(req)"
+                @send="sendGraphQLRequest"
+              />
+            </div>
+            
+            <div 
+              class="h-1 bg-surface-200 dark:bg-surface-700 cursor-row-resize hover:bg-diamond-500 transition-colors flex-shrink-0"
+              @mousedown="startSplitDrag"
+            />
+            
+            <div 
+              class="overflow-auto"
+              :style="{ height: `${100 - splitPosition}%` }"
+            >
+              <ResponsePanel />
+            </div>
+          </template>
           
-          <div 
-            class="overflow-auto"
-            :style="{ height: `${100 - splitPosition}%` }"
-          >
-            <ResponsePanel />
-          </div>
+          <!-- WebSocket Panel -->
+          <template v-else-if="tabsStore.activeTab.requestType === 'websocket'">
+            <WebSocketPanel 
+              v-if="tabsStore.activeTab.websocketRequest"
+              :request="tabsStore.activeTab.websocketRequest"
+              @update="(req) => updateWebSocketRequest(req)"
+            />
+          </template>
         </div>
         
         <WelcomeScreen v-else />

@@ -2,9 +2,10 @@
 import { ref, computed } from 'vue'
 import { useWorkspaceStore } from '@/stores/workspace'
 import { useTabsStore } from '@/stores/tabs'
-import type { Collection, CollectionItem, HistoryEntry } from '@/types'
+import type { Collection, CollectionItem, HistoryEntry, RequestChain } from '@/types'
 import CollectionTree from './CollectionTree.vue'
 import EnvironmentSelector from './EnvironmentSelector.vue'
+import RequestChainEditor from './RequestChainEditor.vue'
 
 defineProps<{
   collapsed: boolean
@@ -17,9 +18,12 @@ const emit = defineEmits<{
 const workspaceStore = useWorkspaceStore()
 const tabsStore = useTabsStore()
 
-const activeSection = ref<'collections' | 'history' | 'environments'>('collections')
+const activeSection = ref<'collections' | 'history' | 'environments' | 'chains'>('collections')
 const showNewCollectionModal = ref(false)
 const newCollectionName = ref('')
+const showChainEditor = ref(false)
+const editingChain = ref<RequestChain | undefined>(undefined)
+const savedChains = ref<RequestChain[]>([])
 
 const collections = computed(() => workspaceStore.activeWorkspace?.collections ?? [])
 const history = computed(() => workspaceStore.activeWorkspace?.history ?? [])
@@ -61,6 +65,26 @@ function getMethodClass(method: string): string {
   }
   return classes[method] || 'method-get'
 }
+
+function openChainEditor(chain?: RequestChain) {
+  editingChain.value = chain
+  showChainEditor.value = true
+}
+
+function saveChain(chain: RequestChain) {
+  const existingIndex = savedChains.value.findIndex(c => c.id === chain.id)
+  if (existingIndex >= 0) {
+    savedChains.value[existingIndex] = chain
+  } else {
+    savedChains.value.push(chain)
+  }
+  showChainEditor.value = false
+  editingChain.value = undefined
+}
+
+function deleteChain(chainId: string) {
+  savedChains.value = savedChains.value.filter(c => c.id !== chainId)
+}
 </script>
 
 <template>
@@ -70,10 +94,10 @@ function getMethodClass(method: string): string {
   >
     <div v-if="!collapsed" class="flex border-b">
       <button
-        v-for="section in ['collections', 'history', 'environments']"
+        v-for="section in ['collections', 'history', 'environments', 'chains']"
         :key="section"
         @click="activeSection = section as typeof activeSection"
-        class="flex-1 px-3 py-2 text-xs font-medium capitalize transition-colors"
+        class="flex-1 px-2 py-2 text-xs font-medium capitalize transition-colors"
         :class="activeSection === section 
           ? 'text-diamond-600 dark:text-diamond-400 border-b-2 border-diamond-600 dark:border-diamond-400' 
           : 'text-surface-500 hover:text-surface-700 dark:hover:text-surface-300'"
@@ -169,6 +193,58 @@ function getMethodClass(method: string): string {
       <div v-else-if="activeSection === 'environments'" class="p-2">
         <EnvironmentSelector />
       </div>
+      
+      <div v-else-if="activeSection === 'chains'" class="p-2">
+        <div class="flex items-center justify-between mb-2">
+          <span class="text-xs font-medium text-surface-500 uppercase tracking-wider">Request Chains</span>
+          <button
+            @click="openChainEditor()"
+            class="p-1 rounded hover:bg-surface-200 dark:hover:bg-surface-800 text-surface-500 hover:text-surface-700 dark:hover:text-surface-300"
+            title="New Chain"
+          >
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
+            </svg>
+          </button>
+        </div>
+        
+        <div v-if="savedChains.length === 0" class="text-center py-8 text-surface-400 text-sm">
+          <p>No request chains yet</p>
+          <button
+            @click="openChainEditor()"
+            class="mt-2 text-diamond-600 dark:text-diamond-400 hover:underline"
+          >
+            Create your first chain
+          </button>
+          <p class="text-xs mt-3 text-surface-400">
+            Chains let you run multiple requests in sequence with shared data.
+          </p>
+        </div>
+        
+        <div
+          v-for="chain in savedChains"
+          :key="chain.id"
+          class="flex items-center gap-2 p-2 rounded-md hover:bg-surface-200 dark:hover:bg-surface-800 cursor-pointer group"
+        >
+          <div class="flex-1 min-w-0" @click="openChainEditor(chain)">
+            <p class="text-sm font-medium truncate text-surface-700 dark:text-surface-300">
+              {{ chain.name }}
+            </p>
+            <p class="text-xs text-surface-400">
+              {{ chain.requests.length }} requests
+            </p>
+          </div>
+          <button
+            @click.stop="deleteChain(chain.id)"
+            class="p-1 rounded opacity-0 group-hover:opacity-100 hover:bg-red-100 dark:hover:bg-red-900/20 text-red-500"
+            title="Delete chain"
+          >
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+            </svg>
+          </button>
+        </div>
+      </div>
     </div>
     
     <div v-if="!collapsed" class="p-2 border-t">
@@ -206,5 +282,12 @@ function getMethodClass(method: string): string {
         </div>
       </div>
     </Teleport>
+    
+    <RequestChainEditor
+      v-if="showChainEditor"
+      :chain="editingChain"
+      @save="saveChain"
+      @close="showChainEditor = false; editingChain = undefined"
+    />
   </aside>
 </template>

@@ -85,8 +85,12 @@ export interface HttpResponse {
 
 export interface RequestTab {
   id: string
+  requestType: RequestType
   request: HttpRequest
+  graphqlRequest?: GraphQLRequest
+  websocketRequest?: WebSocketRequest
   response?: HttpResponse
+  graphqlResponse?: GraphQLResponse
   isLoading: boolean
   isDirty: boolean
 }
@@ -429,4 +433,48 @@ export interface ScriptResult {
   tests: TestResult[]
   setVariables?: Record<string, string>
   setCookies?: Cookie[]
+}
+
+// Linked/Dependent Requests
+export interface RequestDependency {
+  id: string
+  sourceRequestId: string
+  targetRequestId: string
+  dataMapping: DataMapping[]
+  runBefore: boolean // If true, source runs before target
+  enabled: boolean
+}
+
+export interface DataMapping {
+  id: string
+  sourceField: string // JSONPath or response field like "body.data.id" or "headers.Authorization"
+  targetField: string // Where to inject: "params.userId", "headers.X-Token", "body.id"
+  transform?: string // Optional JS expression to transform the value
+}
+
+export interface RequestChain {
+  id: string
+  name: string
+  description?: string
+  requests: ChainedRequest[]
+  variables: Record<string, string> // Shared variables across the chain
+  createdAt: number
+  updatedAt: number
+}
+
+export interface ChainedRequest {
+  id: string
+  requestId: string
+  order: number
+  condition?: string // JS expression to determine if this request should run
+  extractors: DataExtractor[]
+  enabled: boolean
+}
+
+export interface DataExtractor {
+  id: string
+  name: string // Variable name to store the extracted value
+  source: 'body' | 'headers' | 'status' | 'timing'
+  path: string // JSONPath for body, header name for headers
+  transform?: string // Optional JS transform
 }

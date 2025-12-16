@@ -1,20 +1,40 @@
 <script setup lang="ts">
-import { ref, computed, watch } from 'vue'
+import { ref, computed } from 'vue'
 import { useTabsStore } from '@/stores/tabs'
 import { useWorkspaceStore } from '@/stores/workspace'
-import type { HttpMethod, KeyValue, BodyType, AuthType } from '@/types'
+import type { HttpMethod, KeyValue, RequestType } from '@/types'
 import { v4 as uuidv4 } from 'uuid'
 import BodyEditor from './BodyEditor.vue'
 import AuthEditor from './AuthEditor.vue'
 import KeyValueEditor from './KeyValueEditor.vue'
+import ScriptEditor from './ScriptEditor.vue'
 
 const tabsStore = useTabsStore()
 const workspaceStore = useWorkspaceStore()
 
 const activeTab = computed(() => tabsStore.activeTab)
 const request = computed(() => activeTab.value?.request)
+const currentRequestType = computed(() => activeTab.value?.requestType || 'http')
 
-const activeSection = ref<'params' | 'headers' | 'body' | 'auth' | 'cookies'>('params')
+const activeSection = ref<'params' | 'headers' | 'body' | 'auth' | 'cookies' | 'pre-request' | 'tests'>('params')
+
+const requestTypes: { value: RequestType; label: string; color: string }[] = [
+  { value: 'http', label: 'HTTP', color: 'bg-emerald-500' },
+  { value: 'graphql', label: 'GraphQL', color: 'bg-pink-500' },
+  { value: 'websocket', label: 'WebSocket', color: 'bg-indigo-500' }
+]
+
+function changeRequestType(type: RequestType) {
+  if (!activeTab.value) return
+  
+  if (type === 'graphql') {
+    tabsStore.createGraphQLTab()
+  } else if (type === 'websocket') {
+    tabsStore.createWebSocketTab()
+  } else {
+    tabsStore.setRequestType(activeTab.value.id, type)
+  }
+}
 
 const methods: HttpMethod[] = ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS', 'HEAD']
 
@@ -200,6 +220,31 @@ function getMethodClass(method: string): string {
 <template>
   <div v-if="request" class="h-full flex flex-col">
     <div class="flex items-center gap-2 p-3 border-b">
+      <!-- Request Type Selector -->
+      <div class="relative group">
+        <button
+          class="flex items-center gap-1 px-2 py-1 text-xs font-medium rounded border dark:border-surface-600 hover:bg-surface-100 dark:hover:bg-surface-800"
+        >
+          <span :class="['w-2 h-2 rounded-full', requestTypes.find(t => t.value === currentRequestType)?.color || 'bg-emerald-500']"></span>
+          {{ requestTypes.find(t => t.value === currentRequestType)?.label || 'HTTP' }}
+          <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
+          </svg>
+        </button>
+        <div class="absolute left-0 top-full mt-1 bg-white dark:bg-surface-800 rounded-lg shadow-lg border dark:border-surface-700 py-1 min-w-32 z-10 hidden group-hover:block">
+          <button
+            v-for="type in requestTypes"
+            :key="type.value"
+            @click="changeRequestType(type.value)"
+            class="w-full flex items-center gap-2 px-3 py-1.5 text-sm hover:bg-surface-100 dark:hover:bg-surface-700"
+            :class="{ 'bg-surface-100 dark:bg-surface-700': currentRequestType === type.value }"
+          >
+            <span :class="['w-2 h-2 rounded-full', type.color]"></span>
+            {{ type.label }}
+          </button>
+        </div>
+      </div>
+      
       <div class="relative">
         <select
           :value="request.method"
@@ -234,15 +279,15 @@ function getMethodClass(method: string): string {
       </button>
     </div>
     
-    <div class="flex border-b">
+    <div class="flex border-b overflow-x-auto">
       <button
-        v-for="section in ['params', 'headers', 'body', 'auth', 'cookies'] as const"
+        v-for="section in ['params', 'headers', 'body', 'auth', 'cookies', 'pre-request', 'tests'] as const"
         :key="section"
         @click="activeSection = section"
-        class="tab capitalize"
+        class="tab capitalize whitespace-nowrap"
         :class="{ 'tab-active': activeSection === section }"
       >
-        {{ section }}
+        {{ section === 'pre-request' ? 'Pre-request' : section === 'tests' ? 'Tests' : section }}
         <span
           v-if="section === 'params' && request.params.filter(p => p.enabled).length"
           class="ml-1 px-1.5 py-0.5 text-xs rounded-full bg-surface-200 dark:bg-surface-700"
@@ -293,6 +338,20 @@ function getMethodClass(method: string): string {
         @update="updateCookies"
         placeholder-key="Cookie name"
         placeholder-value="Value"
+      />
+      
+      <ScriptEditor
+        v-else-if="activeSection === 'pre-request'"
+        :script="request.preRequestScript || ''"
+        type="pre-request"
+        @update="(script) => tabsStore.updateRequest(activeTab!.id, { preRequestScript: script })"
+      />
+      
+      <ScriptEditor
+        v-else-if="activeSection === 'tests'"
+        :script="request.testScript || ''"
+        type="test"
+        @update="(script) => tabsStore.updateRequest(activeTab!.id, { testScript: script })"
       />
     </div>
   </div>
