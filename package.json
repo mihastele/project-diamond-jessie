@@ -3,11 +3,15 @@
   "version": "0.1.0",
   "description": "Open-source API client",
   "type": "module",
+  "bin": {
+    "obsidian": "./cli/obsidian.js"
+  },
   "scripts": {
     "dev": "vite",
     "build": "vue-tsc --noEmit && vite build",
     "preview": "vite preview",
-    "tauri": "tauri"
+    "tauri": "tauri",
+    "obsidian": "node ./cli/obsidian.js"
   },
   "dependencies": {
     "vue": "^3.4.21",

@@ -1,7 +1,7 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
 import { v4 as uuidv4 } from 'uuid'
-import type { RequestTab, HttpRequest, HttpResponse, HttpMethod, RequestType, GraphQLRequest, WebSocketRequest } from '@/types'
+import type { RequestTab, HttpRequest, HttpResponse, HttpMethod, RequestType, GraphQLRequest, WebSocketRequest, CollectionItem } from '@/types'
 
 function createDefaultRequest(): HttpRequest {
   return {
@@ -97,6 +97,37 @@ export const useTabsStore = defineStore('tabs', () => {
       return existingTab
     }
     return createTab(request)
+  }
+
+  function openCollectionItem(item: CollectionItem, collectionId: string): RequestTab | null {
+    if (item.type !== 'request' || !item.request) return null
+    
+    // Check if already open by item ID
+    const existingTab = tabs.value.find(t => t.savedRef?.itemId === item.id)
+    if (existingTab) {
+      activeTabId.value = existingTab.id
+      return existingTab
+    }
+    
+    const requestType = item.requestType || 'http'
+    
+    const tab: RequestTab = {
+      id: uuidv4(),
+      requestType,
+      request: { ...item.request },
+      graphqlRequest: item.graphqlRequest ? { ...item.graphqlRequest } : undefined,
+      websocketRequest: item.websocketRequest ? { ...item.websocketRequest } : undefined,
+      isLoading: false,
+      isDirty: false,
+      savedRef: {
+        collectionId,
+        itemId: item.id
+      }
+    }
+    
+    tabs.value.push(tab)
+    activeTabId.value = tab.id
+    return tab
   }
 
   function closeTab(tabId: string) {
@@ -213,6 +244,7 @@ export const useTabsStore = defineStore('tabs', () => {
     createWebSocketTab,
     setRequestType,
     openRequest,
+    openCollectionItem,
     closeTab,
     closeAllTabs,
     closeOtherTabs,

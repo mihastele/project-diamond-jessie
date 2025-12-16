@@ -38,7 +38,7 @@ function isFolderExpanded(folderId: string): boolean {
 
 function openRequest(item: CollectionItem) {
   if (item.type === 'request' && item.request) {
-    tabsStore.openRequest(item.request)
+    tabsStore.openCollectionItem(item, props.collection.id)
   }
 }
 
@@ -147,9 +147,17 @@ function getMethodClass(method: string): string {
     PUT: 'method-put',
     PATCH: 'method-patch',
     DELETE: 'method-delete',
-    OPTIONS: 'method-options'
+    OPTIONS: 'method-options',
+    GQL: 'text-pink-600 dark:text-pink-400 bg-pink-100 dark:bg-pink-900/30',
+    WS: 'text-indigo-600 dark:text-indigo-400 bg-indigo-100 dark:bg-indigo-900/30'
   }
   return classes[method] || 'method-get'
+}
+
+function getItemDisplayMethod(item: CollectionItem): string {
+  if (item.requestType === 'graphql') return 'GQL'
+  if (item.requestType === 'websocket') return 'WS'
+  return (item.request?.method || 'GET').slice(0, 3)
 }
 </script>
 
@@ -193,8 +201,8 @@ function getMethodClass(method: string): string {
           @click="openRequest(item)"
           @contextmenu="showRequestMenu($event, item.id, [])"
         >
-          <span :class="['method-badge text-[10px]', getMethodClass(item.request?.method || 'GET')]">
-            {{ (item.request?.method || 'GET').slice(0, 3) }}
+          <span :class="['method-badge text-[10px]', getMethodClass(getItemDisplayMethod(item))]">
+            {{ getItemDisplayMethod(item) }}
           </span>
           <span class="text-sm truncate text-surface-700 dark:text-surface-300">
             {{ item.name }}
@@ -234,8 +242,8 @@ function getMethodClass(method: string): string {
                 @click="openRequest(child)"
                 @contextmenu="showRequestMenu($event, child.id, [item.id])"
               >
-                <span :class="['method-badge text-[10px]', getMethodClass(child.request?.method || 'GET')]">
-                  {{ (child.request?.method || 'GET').slice(0, 3) }}
+                <span :class="['method-badge text-[10px]', getMethodClass(getItemDisplayMethod(child))]">
+                  {{ getItemDisplayMethod(child) }}
                 </span>
                 <span class="text-sm truncate text-surface-700 dark:text-surface-300">
                   {{ child.name }}
@@ -273,8 +281,8 @@ function getMethodClass(method: string): string {
                       @click="openRequest(grandchild)"
                       @contextmenu="showRequestMenu($event, grandchild.id, [item.id, child.id])"
                     >
-                      <span :class="['method-badge text-[10px]', getMethodClass(grandchild.request?.method || 'GET')]">
-                        {{ (grandchild.request?.method || 'GET').slice(0, 3) }}
+                      <span :class="['method-badge text-[10px]', getMethodClass(getItemDisplayMethod(grandchild))]">
+                        {{ getItemDisplayMethod(grandchild) }}
                       </span>
                       <span class="text-sm truncate text-surface-700 dark:text-surface-300">
                         {{ grandchild.name }}
