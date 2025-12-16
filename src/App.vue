@@ -11,14 +11,30 @@ import GraphQLPanel from '@/components/GraphQLPanel.vue'
 import WebSocketPanel from '@/components/WebSocketPanel.vue'
 import CommandPalette from '@/components/CommandPalette.vue'
 import WelcomeScreen from '@/components/WelcomeScreen.vue'
+import CollectionPicker from '@/components/CollectionPicker.vue'
 
 const settingsStore = useSettingsStore()
 const workspaceStore = useWorkspaceStore()
 const tabsStore = useTabsStore()
 
 const showCommandPalette = ref(false)
+const showCollectionPicker = ref(false)
 const sidebarCollapsed = ref(false)
 const splitPosition = ref(50)
+
+// Save active request - opens collection picker
+function saveActiveRequest() {
+  if (tabsStore.activeTabId) {
+    showCollectionPicker.value = true
+  }
+}
+
+// Expose for child components
+function openCollectionPicker() {
+  showCollectionPicker.value = true
+}
+
+defineExpose({ openCollectionPicker })
 
 onMounted(() => {
   settingsStore.init()
@@ -57,8 +73,14 @@ function setupKeyboardShortcuts() {
       sidebarCollapsed.value = !sidebarCollapsed.value
     }
     
+    if (mod && e.key === 's') {
+      e.preventDefault()
+      saveActiveRequest()
+    }
+    
     if (e.key === 'Escape') {
       showCommandPalette.value = false
+      showCollectionPicker.value = false
     }
   })
 }
@@ -183,7 +205,7 @@ function updateWebSocketRequest(req: any) {
       />
       
       <main class="flex-1 flex flex-col overflow-hidden">
-        <TabBar />
+        <TabBar @open-collection-picker="showCollectionPicker = true" />
         
         <div v-if="tabsStore.activeTab" id="main-panels" class="flex-1 flex flex-col overflow-hidden">
           <!-- HTTP Request Panel -->
@@ -252,6 +274,12 @@ function updateWebSocketRequest(req: any) {
     <CommandPalette 
       v-if="showCommandPalette" 
       @close="showCommandPalette = false" 
+    />
+    
+    <CollectionPicker
+      v-if="showCollectionPicker"
+      @close="showCollectionPicker = false"
+      @saved="showCollectionPicker = false"
     />
   </div>
 </template>

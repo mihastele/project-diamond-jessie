@@ -114,6 +114,9 @@ export interface CollectionItem {
   type: 'request' | 'folder'
   name: string
   request?: HttpRequest
+  requestType?: RequestType
+  graphqlRequest?: GraphQLRequest
+  websocketRequest?: WebSocketRequest
   children?: CollectionItem[]
   description?: string
 }

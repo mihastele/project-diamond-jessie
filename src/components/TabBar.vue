@@ -1,11 +1,13 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue'
 import { useTabsStore } from '@/stores/tabs'
-import { useWorkspaceStore } from '@/stores/workspace'
 import ContextMenu, { type MenuItem } from './ContextMenu.vue'
 
 const tabsStore = useTabsStore()
-const workspaceStore = useWorkspaceStore()
+
+const emit = defineEmits<{
+  'open-collection-picker': []
+}>()
 
 const tabs = computed(() => tabsStore.tabs)
 const activeTabId = computed(() => tabsStore.activeTabId)
@@ -116,23 +118,17 @@ function cancelRename() {
 }
 
 function addToCollection(tabId: string) {
-  const tab = tabs.value.find(t => t.id === tabId)
-  if (!tab) return
-  
-  // Get active collection or first collection
-  const collections = workspaceStore.activeWorkspace?.collections || []
-  if (collections.length > 0) {
-    workspaceStore.addRequestToCollection(collections[0].id, tab.request)
-    tabsStore.markSaved(tabId)
-  }
+  // First activate the tab so the collection picker saves the right request
+  tabsStore.setActiveTab(tabId)
+  // Open the collection picker modal
+  emit('open-collection-picker')
 }
 
 function saveRequest(tabId: string) {
-  const tab = tabs.value.find(t => t.id === tabId)
-  if (!tab) return
-  
-  // Try to save to existing collection or add to default
-  addToCollection(tabId)
+  // First activate the tab so the collection picker saves the right request
+  tabsStore.setActiveTab(tabId)
+  // Open the collection picker modal
+  emit('open-collection-picker')
 }
 
 function getTabDisplayMethod(tab: typeof tabs.value[0]): string {

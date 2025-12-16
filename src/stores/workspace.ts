@@ -8,8 +8,17 @@ import type {
   Variable, 
   HistoryEntry,
   CollectionItem,
-  HttpRequest 
+  HttpRequest,
+  RequestType,
+  GraphQLRequest,
+  WebSocketRequest
 } from '@/types'
+
+export interface RequestMetadata {
+  requestType?: RequestType
+  graphqlRequest?: GraphQLRequest
+  websocketRequest?: WebSocketRequest
+}
 
 export const useWorkspaceStore = defineStore('workspace', () => {
   const workspaces = ref<Workspace[]>([])
@@ -106,7 +115,12 @@ export const useWorkspaceStore = defineStore('workspace', () => {
     }
   }
 
-  function addRequestToCollection(collectionId: string, request: HttpRequest, folderId?: string) {
+  function addRequestToCollection(
+    collectionId: string, 
+    request: HttpRequest, 
+    folderId?: string,
+    metadata?: RequestMetadata
+  ) {
     if (!activeWorkspace.value) return
     
     const collection = activeWorkspace.value.collections.find(c => c.id === collectionId)
@@ -116,7 +130,10 @@ export const useWorkspaceStore = defineStore('workspace', () => {
       id: uuidv4(),
       type: 'request',
       name: request.name,
-      request: { ...request, id: uuidv4() }
+      request: { ...request, id: uuidv4() },
+      requestType: metadata?.requestType || 'http',
+      graphqlRequest: metadata?.graphqlRequest,
+      websocketRequest: metadata?.websocketRequest
     }
 
     if (folderId) {
