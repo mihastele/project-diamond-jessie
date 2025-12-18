@@ -38,6 +38,19 @@ export function isTauri(): boolean {
 
 // Send HTTP request using Tauri backend (bypasses CORS) or fallback to fetch
 export async function sendHttpRequest(payload: HttpRequestPayload): Promise<HttpResponsePayload> {
+  // Merge in Postman-like default headers without overriding user-provided headers
+  payload.headers = payload.headers || {}
+  const defaultHeaders: Record<string, string> = {
+    'Accept': '*/*',
+    'Cache-Control': 'no-cache'
+  }
+  const existingLower = Object.keys(payload.headers).map(k => k.toLowerCase())
+  for (const [k, v] of Object.entries(defaultHeaders)) {
+    if (!existingLower.includes(k.toLowerCase())) {
+      payload.headers[k] = v
+    }
+  }
+
   if (isTauri()) {
     // Use Tauri backend - no CORS restrictions
     return await invoke<HttpResponsePayload>('send_request', { request: payload })
